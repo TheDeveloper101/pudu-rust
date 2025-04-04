@@ -1,23 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-// Define traits that represent peripherals and their states
 pub trait Peripheral: Clone + Eq + Hash {}
 
 pub trait PeripheralState: Clone + Eq + Hash {
     type PeripheralType: Peripheral;
     
-    // Returns the off state for a peripheral
     fn off() -> Self;
 }
 
-// Main typestate tracking system
 pub struct Pudu<P, S>
 where
     P: Peripheral,
     S: PeripheralState<PeripheralType = P>,
 {
-    // Track the current state of each peripheral
     states: HashMap<P, S>,
     
     // Track functions that manipulate peripherals
@@ -46,7 +42,6 @@ where
         }
     }
         
-    // Typestate Tracking
     pub fn enroll(&mut self, peripheral: P) {
         self.states.insert(peripheral.clone(), S::off());
     }
@@ -55,7 +50,6 @@ where
         self.states.insert(peripheral.clone(), state);
     }
     
-    // Function Registration
     pub fn register_sleep(&mut self, peripheral: P, func: fn(&P)) {
         self.sleep_functions
             .entry(peripheral)
@@ -77,7 +71,6 @@ where
             .push(func);
     }
     
-    // ISR Registration
     pub fn enable_isr(&mut self, peripheral: &P, isr_name: &str) {
         self.isr_mappings
             .entry(peripheral.clone())
@@ -90,7 +83,6 @@ where
         self.active_isrs.remove(isr_name);
     }
     
-    // Checkers
     pub fn check(&self, peripheral: &P, expected_state: &S) -> bool {
         if let Some(state) = self.states.get(peripheral) {
             state == expected_state
