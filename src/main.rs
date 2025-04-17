@@ -36,11 +36,6 @@ where
             _state: std::marker::PhantomData,
         }
     }
-    
-    pub fn get(&self) -> &P {
-        &self.peripheral
-    }
-    
     pub fn expect<ExpectedS: State>(self) -> Self 
     where 
         S: std::cmp::PartialEq<ExpectedS>,
@@ -50,7 +45,6 @@ where
     }
 }
 
-#[macro_export]
 macro_rules! define_transition {
     ($peripheral:ty, $from:ty, $to:ty) => {
         impl ValidTransition<$from, $to> for $peripheral {}

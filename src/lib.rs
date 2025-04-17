@@ -37,10 +37,6 @@ where
         }
     }
     
-    pub fn get(&self) -> &P {
-        &self.peripheral
-    }
-    
     pub fn expect<ExpectedS: State>(self) -> Self 
     where 
         S: std::cmp::PartialEq<ExpectedS>,
