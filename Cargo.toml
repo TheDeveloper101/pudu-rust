@@ -1,10 +1,10 @@
 [package]
-name = "pudu-rust"
-version = "0.1.0"
-edition = "2024"
+name = "pudu_rust" 
 
-[dependencies]
-lazy_static = "1.5.0"
-proc-macro2 = "1.0.94"
-quote = "1.0.40"
-syn = {version = "2.0.100", features = ["full", "visit-mut"]}
+[lib]
+name = "checking"  # This is the name you'll use to import it
+path = "src/lib.rs"
+
+[[bin]]
+name = "test"
+path = "src/main.rs"
