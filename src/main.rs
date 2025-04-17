@@ -115,7 +115,7 @@ impl Peripheral for I2CBus {
     type State = States;
 }
 
-// Define which states the I2C bus can be in
+// states the I2C bus can be in
 impl InState<Stop> for I2CBus {}
 impl InState<Configured> for I2CBus {}
 impl InState<Running> for I2CBus {}
