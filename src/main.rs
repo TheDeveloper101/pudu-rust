@@ -45,7 +45,7 @@ where
     }
 }
 
-macro_rules! define_transition {
+macro_rules! allow_transition {
     ($peripheral:ty, $from:ty, $to:ty) => {
         impl ValidTransition<$from, $to> for $peripheral {}
     };
@@ -92,6 +92,10 @@ impl I2CBus {
         println!("configured with number: {num}")
     }
     
+    fn run(&mut self) {
+        println!("running")
+    }
+
     fn start(&mut self) {
         println!("started")
     }
@@ -116,11 +120,18 @@ impl InState<Running> for I2CBus {}
 impl InState<Idle> for I2CBus {}
 
 // valid state transitions
-define_transition!(I2CBus, Stop, Idle);
-define_transition!(I2CBus, Idle, Configured);
-define_transition!(I2CBus, Configured, Running);
-define_transition!(I2CBus, Running, Idle);
-define_transition!(I2CBus, Idle, Stop);
+allow_transition!(I2CBus, Stop, Idle);
+allow_transition!(I2CBus, Idle, Configured);
+allow_transition!(I2CBus, Configured, Running);
+allow_transition!(I2CBus, Running, Idle);
+allow_transition!(I2CBus, Idle, Stop);
+
+impl Stateful<I2CBus, Stop> {
+    pub fn start(mut self) -> Stateful<I2CBus, Idle> {
+        self.peripheral.start();
+        self.transition::<Idle>()
+    }
+}
 
 impl Stateful<I2CBus, Idle> {
     pub fn configure(mut self, number: u32) -> Stateful<I2CBus, Configured> {
@@ -135,8 +146,8 @@ impl Stateful<I2CBus, Idle> {
 }
 
 impl Stateful<I2CBus, Configured> {
-    pub fn start(mut self) -> Stateful<I2CBus, Running> {
-        self.peripheral.start();
+    pub fn run(mut self) -> Stateful<I2CBus, Running> {
+        self.peripheral.run();
         self.transition::<Running>()
     } 
 }
@@ -150,19 +161,20 @@ impl Stateful<I2CBus, Running> {
 
 fn main() {
     let bus = I2CBus::new();
-    let idle = Stateful::<I2CBus, Idle>::new::<Idle>(bus);
+    let stop = Stateful::<I2CBus, Stop>::new::<Stop>(bus);
+    let idle = stop.start();
     let configured = idle.configure(1000);
     
-    let running = configured.start();
+    let running = configured.run();
 
     let idle = running.idle();
     let test: Stateful<I2CBus, _>;
     if true == true {
-        let stopped = idle.configure(123).start().idle().stop();
+        let stopped = idle.configure(123).run().idle().stop();
         stopped.expect::<Stop>();
         // stopped.start()
     } else {
-        test = idle.configure(123).start().idle().stop();
+        test = idle.configure(123).run().idle();
     }
 
     // test.expect::<Running>();
