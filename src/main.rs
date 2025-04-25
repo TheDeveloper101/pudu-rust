@@ -36,13 +36,11 @@ where
             _state: std::marker::PhantomData,
         }
     }
-    pub fn expect<ExpectedS: State>(self) -> Self 
+    pub fn expect<ExpectedS: State>(self) -> () 
     where 
         S: std::cmp::PartialEq<ExpectedS>,
         P: InState<ExpectedS>
-    {
-        self
-    }
+    {}
 }
 
 macro_rules! allow_transition {
@@ -50,24 +48,21 @@ macro_rules! allow_transition {
         impl ValidTransition<$from, $to> for $peripheral {}
     };
 }
+
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Idle { Default}
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-
 pub enum Configured {Default}
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-
 pub enum Running {Default}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-
 pub enum Stop { Default}
 impl State for Idle {}
 impl State for Configured {}
 impl State for Running {}
 impl State for Stop {}
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-
 pub enum States {
     Idle(Idle),
     Configured(Configured),
@@ -127,54 +122,65 @@ allow_transition!(I2CBus, Running, Idle);
 allow_transition!(I2CBus, Idle, Stop);
 
 impl Stateful<I2CBus, Stop> {
-    pub fn start(mut self) -> Stateful<I2CBus, Idle> {
+    pub fn start<F>(mut self, callback: F) -> Stateful<I2CBus, Idle>  
+    where for<'a> F: FnOnce(&I2CBus) -> () {
         self.peripheral.start();
+        callback(&self.peripheral);
         self.transition::<Idle>()
     }
 }
 
 impl Stateful<I2CBus, Idle> {
-    pub fn configure(mut self, number: u32) -> Stateful<I2CBus, Configured> {
+    pub fn configure<F>(mut self, number: u32, callback: F) -> Stateful<I2CBus, Configured> 
+    where for<'a> F: FnOnce(&I2CBus) -> () {
         self.peripheral.configure(number);
+        callback(&self.peripheral);
         self.transition::<Configured>()
     }
 
-    pub fn stop(mut self) -> Stateful<I2CBus, Stop> {
+    pub fn stop<F>(mut self, callback: F) -> Stateful<I2CBus, Stop> 
+    where for<'a> F: FnOnce(&I2CBus) -> () {
         self.peripheral.stop();
+        callback(&self.peripheral);
         self.transition::<Stop>()
     }
 }
 
 impl Stateful<I2CBus, Configured> {
-    pub fn run(mut self) -> Stateful<I2CBus, Running> {
+    pub fn run<F>(mut self, callback: F) -> Stateful<I2CBus, Running> 
+    where for<'a> F: FnOnce(&I2CBus) -> () {
         self.peripheral.run();
+        callback(&self.peripheral);
         self.transition::<Running>()
     } 
 }
 
 impl Stateful<I2CBus, Running> {
-    pub fn idle(mut self) -> Stateful<I2CBus, Idle> {
+    pub fn idle<F>(mut self, callback: F) -> Stateful<I2CBus, Idle> 
+    where for<'a> F: FnOnce(&I2CBus) -> () {
         self.peripheral.idle();
+        callback(&self.peripheral);
         self.transition::<Idle>()
     }
 }
 
 fn main() {
     let bus = I2CBus::new();
+    fn dummy(bus: &I2CBus) {};
     let stop = Stateful::<I2CBus, Stop>::new::<Stop>(bus);
-    let idle = stop.start();
-    let configured = idle.configure(1000);
+    let idle = stop.start(dummy);
+    let configured = idle.configure(1000, dummy);
     
-    let running = configured.run();
+    let running = configured.run(dummy);
 
-    let idle = running.idle();
+    let idle = running.idle(dummy);
     let test: Stateful<I2CBus, _>;
     if true == true {
-        let stopped = idle.configure(123).run().idle().stop();
+        let stopped = idle.configure(123, dummy).run(dummy).idle(dummy).stop(dummy);
         stopped.expect::<Stop>();
-        // stopped.start()
+        // stopped.run();
     } else {
-        test = idle.configure(123).run().idle();
+        test = idle.configure(123, dummy).run(dummy).idle(dummy).stop(dummy);
     }
 
     // test.expect::<Running>();
