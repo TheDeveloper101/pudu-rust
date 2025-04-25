@@ -164,9 +164,10 @@ impl Stateful<I2CBus, Running> {
     }
 }
 
+fn dummy(_: &I2CBus) {}
+
 fn main() {
     let bus = I2CBus::new();
-    fn dummy(bus: &I2CBus) {};
     let stop = Stateful::<I2CBus, Stop>::new::<Stop>(bus);
     let idle = stop.start(dummy);
     let configured = idle.configure(1000, dummy);
