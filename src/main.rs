@@ -164,24 +164,30 @@ impl Stateful<I2CBus, Running> {
     }
 }
 
-fn dummy(_: &I2CBus) {}
+fn callback(_: &I2CBus) {}
 
 fn main() {
     let bus = I2CBus::new();
     let stop = Stateful::<I2CBus, Stop>::new::<Stop>(bus);
-    let idle = stop.start(dummy);
-    let configured = idle.configure(1000, dummy);
+    let idle = stop.start(callback);
+    let configured = idle.configure(1000, callback);
     
-    let running = configured.run(dummy);
+    let running = configured.run(callback);
 
-    let idle = running.idle(dummy);
+    let idle = running.idle(callback);
     let test: Stateful<I2CBus, _>;
     if true == true {
-        let stopped = idle.configure(123, dummy).run(dummy).idle(dummy).stop(dummy);
+        let stopped = idle.configure(123, callback)
+                                                    .run(callback)
+                                                    .idle(callback)
+                                                    .stop(callback);
         stopped.expect::<Stop>();
         // stopped.run();
     } else {
-        test = idle.configure(123, dummy).run(dummy).idle(dummy).stop(dummy);
+        test = idle.configure(123, callback)
+                    .run(callback)
+                    .idle(callback)
+                    .stop(callback);
     }
 
     // test.expect::<Running>();
