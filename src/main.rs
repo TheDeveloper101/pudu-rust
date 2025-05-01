@@ -123,48 +123,57 @@ allow_transition!(I2CBus, Idle, Stop);
 
 impl Stateful<I2CBus, Stop> {
     pub fn start<F>(mut self, callback: F) -> Stateful<I2CBus, Idle>  
-    where for<'a> F: FnOnce(&I2CBus) -> () {
+    where for<'a> F: FnOnce(&mut I2CBus) -> () {
         self.peripheral.start();
-        callback(&self.peripheral);
-        self.transition::<Idle>()
+        let mut ret = self.transition::<Idle>();
+        callback(&mut ret.peripheral);
+        ret
     }
 }
 
 impl Stateful<I2CBus, Idle> {
     pub fn configure<F>(mut self, number: u32, callback: F) -> Stateful<I2CBus, Configured> 
-    where for<'a> F: FnOnce(&I2CBus) -> () {
+    where for<'a> F: FnOnce(&mut I2CBus) -> () {
         self.peripheral.configure(number);
-        callback(&self.peripheral);
-        self.transition::<Configured>()
+        let mut ret = self.transition::<Configured>();
+        callback(&mut ret.peripheral);
+        ret
     }
 
     pub fn stop<F>(mut self, callback: F) -> Stateful<I2CBus, Stop> 
-    where for<'a> F: FnOnce(&I2CBus) -> () {
+    where for<'a> F: FnOnce(&mut I2CBus) -> () {
         self.peripheral.stop();
-        callback(&self.peripheral);
-        self.transition::<Stop>()
+        let mut ret = self.transition::<Stop>();
+        callback(&mut ret.peripheral);
+        ret
     }
 }
 
 impl Stateful<I2CBus, Configured> {
     pub fn run<F>(mut self, callback: F) -> Stateful<I2CBus, Running> 
-    where for<'a> F: FnOnce(&I2CBus) -> () {
+    where for<'a> F: FnOnce(&mut I2CBus) -> () {
         self.peripheral.run();
-        callback(&self.peripheral);
-        self.transition::<Running>()
+        let mut ret = self.transition::<Running>();
+        callback(&mut ret.peripheral);
+        ret
     } 
 }
 
 impl Stateful<I2CBus, Running> {
     pub fn idle<F>(mut self, callback: F) -> Stateful<I2CBus, Idle> 
-    where for<'a> F: FnOnce(&I2CBus) -> () {
+    where for<'a> F: FnOnce(&mut I2CBus) -> () {
         self.peripheral.idle();
-        callback(&self.peripheral);
-        self.transition::<Idle>()
+        let mut ret = self.transition::<Idle>();
+        callback(&mut ret.peripheral);
+        ret
     }
 }
 
-fn callback(_: &I2CBus) {}
+fn callback(_: &mut I2CBus) {}
+
+fn bad(p: &mut I2CBus) {
+    p.start()
+}
 
 fn main() {
     let bus = I2CBus::new();
@@ -187,7 +196,7 @@ fn main() {
         test = idle.configure(123, callback)
                     .run(callback)
                     .idle(callback)
-                    .stop(callback);
+                    .stop(bad);
     }
 
     // test.expect::<Running>();
