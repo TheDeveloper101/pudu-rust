@@ -34,6 +34,13 @@ impl<S: State> I2CBus<S> {
     where
         S: std::cmp::PartialEq<ExpectedS>,
     {}
+
+    pub fn with_callback<F, R>(mut self, callback: F) -> (Self, R) where
+    F: Fn(&mut Self) -> R,
+    {
+        let result = callback(&mut self);
+        (self, result)
+    }
 }
 
 impl I2CBus<Stop> {
@@ -43,45 +50,50 @@ impl I2CBus<Stop> {
         }
     }
     
-    pub fn start<F>(mut self, callback: F) -> I2CBus<Idle> 
-    where F: Fn(&mut Self) {
+    pub fn start<F>(self, callback: F) -> I2CBus<Idle> 
+    where F: Fn(&mut I2CBus<Idle>) {
         println!("started");
-        callback(&mut self);
-        self.transition::<Idle>()
+        let intermediate = self.transition::<Idle>();
+        let (ret, _) = intermediate.with_callback(callback);
+        ret
     }
 }
 
 impl I2CBus<Idle> {
-    pub fn configure<F>(mut self, num: u32, callback: F) -> I2CBus<Configured> 
-    where F: Fn(&mut Self) {
+    pub fn configure<F>(self, num: u32, callback: F) -> I2CBus<Configured> 
+    where F: Fn(&mut I2CBus<Configured>) {
         println!("configured with number: {num}");
-        callback(&mut self);
-        self.transition::<Configured>()
+        let intermediate = self.transition::<Configured>();
+        let (ret, _) = intermediate.with_callback(callback);
+        ret
     }
     
-    pub fn stop<F>(mut self, callback: F) -> I2CBus<Stop> 
-    where F: Fn(&mut Self) {
+    pub fn stop<F>(self, callback: F) -> I2CBus<Stop> 
+    where F: Fn(&mut I2CBus<Stop>) {
         println!("stopped");
-        callback(&mut self);
-        self.transition::<Stop>()
+        let intermediate = self.transition::<Stop>();
+        let (ret, _) = intermediate.with_callback(callback);
+        ret
     }
 }
 
 impl I2CBus<Configured> {
-    pub fn run<F>(mut self, callback: F) -> I2CBus<Running> 
-    where F: Fn(&mut Self) {
+    pub fn run<F>(self, callback: F) -> I2CBus<Running> 
+    where F: Fn(&mut I2CBus<Running>) {
         println!("running");
-        callback(&mut self);
-        self.transition::<Running>()
+        let intermediate = self.transition::<Running>();
+        let (ret, _) = intermediate.with_callback(callback);
+        ret
     }
 }
 
 impl I2CBus<Running> {
-    pub fn idle<F>(mut self, callback: F) -> I2CBus<Idle> 
-    where F: Fn(&mut Self) {
+    pub fn idle<F>(self, callback: F) -> I2CBus<Idle> 
+    where F: Fn(&mut I2CBus<Idle>) {
         println!("idling");
-        callback(&mut self);
-        self.transition::<Idle>()
+        let intermediate = self.transition::<Idle>();
+        let (ret, _) = intermediate.with_callback(callback);
+        ret
     }
 }
 
@@ -98,10 +110,11 @@ allow_transition!(I2CBus<Configured>, Configured, Running);
 allow_transition!(I2CBus<Running>, Running, Idle);
 allow_transition!(I2CBus<Idle>, Idle, Stop);
 
-fn callback_stop(_bus: &mut I2CBus<Stop>) {}
-fn callback_idle(_bus: &mut I2CBus<Idle>)  {}
-fn callback_configured(_bus: &mut I2CBus<Configured>) {}
-fn callback_running(_bus: &mut I2CBus<Running>)  {}
+fn callback_stop(_bus: &mut I2CBus<Idle>) {}
+fn callback_idle(_bus: &mut I2CBus<Configured>)  {}
+fn callback_stop2(_bus: &mut I2CBus<Stop>) {}
+fn callback_configured(_bus: &mut I2CBus<Running>) {}
+fn callback_running(_bus: &mut I2CBus<Idle>)  {}
 
 fn main() {
     let new = I2CBus::new();
@@ -118,7 +131,7 @@ fn main() {
             .configure(123, callback_idle)
             .run(callback_configured)
             .idle(callback_running)
-            .stop(callback_idle);
+            .stop(callback_stop2);
         
         stop.expect::<Stop>();
     } else {
