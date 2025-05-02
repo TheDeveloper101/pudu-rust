@@ -1,47 +1,90 @@
 pub trait State: Copy + Clone + PartialEq + Eq + std::fmt::Debug {}
 
-pub trait Peripheral {
-    type State: State;
-}
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Idle {  _private: () }
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Configured { _private: () }
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Running {  _private: () }
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Stop {  _private: () }
 
-pub trait InState<S> {}
+impl State for Idle {}
+impl State for Configured {}
+impl State for Running {}
+impl State for Stop {}
 
 pub trait ValidTransition<From, To> {}
-
-// a peripheral that has state
-pub struct Stateful<P, S> {
-    pub peripheral: P,
+// pretend this is a real i2c bus
+pub struct I2CBus<S: State> {
     _state: std::marker::PhantomData<S>,
 }
 
-impl<P: Peripheral, S> Stateful<P, S> 
-where 
-    S: State,
-    P: InState<S>,
-{
-    pub fn new<NewState: State>(peripheral: P) -> Self {
-        Stateful {
-            peripheral,
+impl<S: State> I2CBus<S> {
+    fn transition<NewS: State>(self) -> I2CBus<NewS>
+    where
+        Self: ValidTransition<S, NewS>,
+    {
+        I2CBus {
             _state: std::marker::PhantomData,
         }
     }
     
-    pub fn transition<NewS: State>(self) -> Stateful<P, NewS> 
-    where 
-        P: InState<NewS>,
-        P: ValidTransition<S, NewS>,
-    {
-        Stateful {
-            peripheral: self.peripheral,
+    pub fn expect<ExpectedS: State>(self) -> ()
+    where
+        S: std::cmp::PartialEq<ExpectedS>,
+    {}
+}
+
+impl I2CBus<Stop> {
+    pub fn new() -> Self {
+        I2CBus {
             _state: std::marker::PhantomData,
         }
     }
-    pub fn expect<ExpectedS: State>(self) -> () 
-    where 
-        S: std::cmp::PartialEq<ExpectedS>,
-        P: InState<ExpectedS>
-    {}
+    
+    pub fn start<F>(mut self, callback: F) -> I2CBus<Idle> 
+    where F: Fn(&mut Self) {
+        println!("started");
+        callback(&mut self);
+        self.transition::<Idle>()
+    }
 }
+
+impl I2CBus<Idle> {
+    pub fn configure<F>(mut self, num: u32, callback: F) -> I2CBus<Configured> 
+    where F: Fn(&mut Self) {
+        println!("configured with number: {num}");
+        callback(&mut self);
+        self.transition::<Configured>()
+    }
+    
+    pub fn stop<F>(mut self, callback: F) -> I2CBus<Stop> 
+    where F: Fn(&mut Self) {
+        println!("stopped");
+        callback(&mut self);
+        self.transition::<Stop>()
+    }
+}
+
+impl I2CBus<Configured> {
+    pub fn run<F>(mut self, callback: F) -> I2CBus<Running> 
+    where F: Fn(&mut Self) {
+        println!("running");
+        callback(&mut self);
+        self.transition::<Running>()
+    }
+}
+
+impl I2CBus<Running> {
+    pub fn idle<F>(mut self, callback: F) -> I2CBus<Idle> 
+    where F: Fn(&mut Self) {
+        println!("idling");
+        callback(&mut self);
+        self.transition::<Idle>()
+    }
+}
+
 
 macro_rules! allow_transition {
     ($peripheral:ty, $from:ty, $to:ty) => {
@@ -49,155 +92,38 @@ macro_rules! allow_transition {
     };
 }
 
+allow_transition!(I2CBus<Stop>, Stop, Idle);
+allow_transition!(I2CBus<Idle>, Idle, Configured);
+allow_transition!(I2CBus<Configured>, Configured, Running);
+allow_transition!(I2CBus<Running>, Running, Idle);
+allow_transition!(I2CBus<Idle>, Idle, Stop);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Idle { Default}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Configured {Default}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Running {Default}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Stop { Default}
-impl State for Idle {}
-impl State for Configured {}
-impl State for Running {}
-impl State for Stop {}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum States {
-    Idle(Idle),
-    Configured(Configured),
-    Running(Running),
-    Stop(Stop),
-}
-
-impl State for States {}
-
-// actually implementing the peripheral
-pub struct I2CBus {
-    // pretend this is a real i2c bus
-}
-
-impl I2CBus {
-    fn new() -> Self {
-        I2CBus {}
-    }
-    
-    // Each method would like actually do stuff with the hardware
-    fn configure(&mut self, num: u32) {
-        println!("configured with number: {num}")
-    }
-    
-    fn run(&mut self) {
-        println!("running")
-    }
-
-    fn start(&mut self) {
-        println!("started")
-    }
-    
-    fn stop(&mut self) {
-        println!("stopped")
-    }
-
-    fn idle(&mut self) {
-        println!("idling")
-    }
-}
-
-impl Peripheral for I2CBus {
-    type State = States;
-}
-
-// states the I2C bus can be in
-impl InState<Stop> for I2CBus {}
-impl InState<Configured> for I2CBus {}
-impl InState<Running> for I2CBus {}
-impl InState<Idle> for I2CBus {}
-
-// valid state transitions
-allow_transition!(I2CBus, Stop, Idle);
-allow_transition!(I2CBus, Idle, Configured);
-allow_transition!(I2CBus, Configured, Running);
-allow_transition!(I2CBus, Running, Idle);
-allow_transition!(I2CBus, Idle, Stop);
-
-impl Stateful<I2CBus, Stop> {
-    pub fn start<F>(mut self, callback: F) -> Stateful<I2CBus, Idle>  
-    where for<'a> F: FnOnce(&mut I2CBus) -> () {
-        self.peripheral.start();
-        let mut ret = self.transition::<Idle>();
-        callback(&mut ret.peripheral);
-        ret
-    }
-}
-
-impl Stateful<I2CBus, Idle> {
-    pub fn configure<F>(mut self, number: u32, callback: F) -> Stateful<I2CBus, Configured> 
-    where for<'a> F: FnOnce(&mut I2CBus) -> () {
-        self.peripheral.configure(number);
-        let mut ret = self.transition::<Configured>();
-        callback(&mut ret.peripheral);
-        ret
-    }
-
-    pub fn stop<F>(mut self, callback: F) -> Stateful<I2CBus, Stop> 
-    where for<'a> F: FnOnce(&mut I2CBus) -> () {
-        self.peripheral.stop();
-        let mut ret = self.transition::<Stop>();
-        callback(&mut ret.peripheral);
-        ret
-    }
-}
-
-impl Stateful<I2CBus, Configured> {
-    pub fn run<F>(mut self, callback: F) -> Stateful<I2CBus, Running> 
-    where for<'a> F: FnOnce(&mut I2CBus) -> () {
-        self.peripheral.run();
-        let mut ret = self.transition::<Running>();
-        callback(&mut ret.peripheral);
-        ret
-    } 
-}
-
-impl Stateful<I2CBus, Running> {
-    pub fn idle<F>(mut self, callback: F) -> Stateful<I2CBus, Idle> 
-    where for<'a> F: FnOnce(&mut I2CBus) -> () {
-        self.peripheral.idle();
-        let mut ret = self.transition::<Idle>();
-        callback(&mut ret.peripheral);
-        ret
-    }
-}
-
-fn callback(_: &mut I2CBus) {}
-
-fn bad(p: &mut I2CBus) {
-    p.start()
-}
+fn callback_stop(_bus: &mut I2CBus<Stop>) {}
+fn callback_idle(_bus: &mut I2CBus<Idle>)  {}
+fn callback_configured(_bus: &mut I2CBus<Configured>) {}
+fn callback_running(_bus: &mut I2CBus<Running>)  {}
 
 fn main() {
-    let bus = I2CBus::new();
-    let stop = Stateful::<I2CBus, Stop>::new::<Stop>(bus);
-    let idle = stop.start(callback);
-    let configured = idle.configure(1000, callback);
+    let new = I2CBus::new();
     
-    let running = configured.run(callback);
-
-    let idle = running.idle(callback);
-    let test: Stateful<I2CBus, _>;
-    if true == true {
-        let stopped = idle.configure(123, callback)
-                                                    .run(callback)
-                                                    .idle(callback)
-                                                    .stop(callback);
-        stopped.expect::<Stop>();
-        // stopped.run();
+    let running = new
+        .start(callback_stop)
+        .configure(1000, callback_idle)
+        .run(callback_configured);
+    
+    let idle = running.idle(callback_running);
+    
+    if true {
+        let stop = idle
+            .configure(123, callback_idle)
+            .run(callback_configured)
+            .idle(callback_running)
+            .stop(callback_idle);
+        
+        stop.expect::<Stop>();
     } else {
-        test = idle.configure(123, callback)
-                    .run(callback)
-                    .idle(callback)
-                    .stop(bad);
+        let configured = idle.configure(456,  callback_idle);        
+        configured.expect::<Configured>();
     }
-
-    // test.expect::<Running>();
+    
 }
