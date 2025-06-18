@@ -1,10 +1,6 @@
 [package]
 name = "pudu_rust" 
 
-[lib]
-name = "checking"  # This is the name you'll use to import it
-path = "src/lib.rs"
-
 [[bin]]
-name = "test"
+name = "pudu_rust"
 path = "src/main.rs"
