@@ -1,7 +1,9 @@
 mod util;
 
 typestate_peripheral! {
-    peripheral I2CBus {};
+    peripheral I2CBus {
+        num: u32,
+    };
 
     states {
         Stop,
@@ -36,8 +38,8 @@ typestate_peripheral! {
     };
 
     methods {
-        Configured => [check_num() -> u32 {
-            42
+        Configured => [check_num(self: &mut Self) -> u32 {
+            self.num
         }];
     };
 }
@@ -48,13 +50,21 @@ fn cb_start(_bus: &mut I2CBus<Idle>) {}
 fn cb_stop(_bus: &mut I2CBus<Stop>) {}
 
 fn main() {
-    let bus = I2CBus::new()
+    let bus = I2CBus::new(42)
         .start(cb_start)
-        .configure(42, cb_idle)
+        .configure( 43, cb_idle)
         .run(cb_run)
         .idle(cb_start)
         .stop(cb_stop);
 
+    let num = bus
+    .clone()
+    .start(cb_start)
+    .configure(44, cb_idle)
+    .check_num();
+
+    println!("number {}", num);
+    
     bus.expect::<Stop>();
 } 
 

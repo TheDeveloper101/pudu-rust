@@ -1,7 +1,9 @@
 #[macro_export]
 macro_rules! typestate_peripheral {
     (
-        peripheral $peripheral:ident$( { $($peripheral_body:tt)* } )?;
+        peripheral $peripheral:ident $( { $(
+            $field_name:ident : $field_type:ty
+        ),* $(,)? } )?;
 
         states {
             $($state:ident),* $(,)?
@@ -15,15 +17,16 @@ macro_rules! typestate_peripheral {
                 ( $from:ident => $to:ident $(, $($arg:ident : $arg_ty:ty)* )? )
                 $( { $($method_body:tt)* } )?;
             )*
-        };        
+        };
 
         methods {
             $(
-                $method_state:ident => [$method_name:ident $( ( $($argument:ident : $arg_type:ty),* ) )? -> $ret:ty 
-                $( { $($method_body_:tt)* } )?];
+                $method_state:ident => [
+                    $method_name:ident ( $($sig:tt)* ) -> $ret:ty
+                    $( { $($method_body_:tt)* } )?
+                ];
             )*
         };
-        
     ) => {
         pub trait State: Copy + Clone + PartialEq + Eq + std::fmt::Debug {}
 
@@ -33,7 +36,13 @@ macro_rules! typestate_peripheral {
             impl State for $state {}
         )*
 
+        #[derive(Clone)]
         pub struct $peripheral<S: State> {
+            $(
+                $(
+                    $field_name: $field_type,
+                )*
+            )?
             _state: std::marker::PhantomData<S>,
         }
 
@@ -42,9 +51,22 @@ macro_rules! typestate_peripheral {
             where
                 Self: ValidTransition<S, NewS>,
             {
-                $peripheral { 
-                    $( $($peripheral_body)* )? 
-                    _state: std::marker::PhantomData 
+                let $peripheral {
+                    $(
+                        $(
+                            $field_name,
+                        )*
+                    )?
+                    _state: _,
+                } = self;
+
+                $peripheral {
+                    $(
+                        $(
+                            $field_name,
+                        )*
+                    )?
+                    _state: std::marker::PhantomData,
                 }
             }
 
@@ -63,9 +85,23 @@ macro_rules! typestate_peripheral {
         }
 
         pub trait ValidTransition<From: State, To: State> {}
+
+        impl $peripheral<$initial> {
+            pub fn new($($($field_name: $field_type),*)?) -> Self {
+                $peripheral {
+                    $(
+                        $(
+                            $field_name,
+                        )*
+                    )?
+                    _state: std::marker::PhantomData,
+                }
+            }
+        }
+
         $(
             impl ValidTransition<$from, $to> for $peripheral<$from> {}
-        
+
             impl $peripheral<$from> {
                 pub fn $method<F>(self $(, $($arg : $arg_ty)* )?, callback: F) -> $peripheral<$to>
                 where
@@ -79,24 +115,14 @@ macro_rules! typestate_peripheral {
                     ret
                 }
             }
-        )*        
+        )*
 
         $(
             impl $peripheral<$method_state> {
-                pub fn $method_name(&mut self $(, $($argument : $arg_type)* )? ) -> $ret {
+                pub fn $method_name($($sig)*) -> $ret {
                     $( $($method_body_)* )?
                 }
             }
         )*
-        
-
-        impl $peripheral<$initial> {
-            pub fn new() -> Self {
-                $peripheral { 
-                    $( $($peripheral_body)* )?
-                    _state: std::marker::PhantomData 
-                }
-            }
-        }
-    }
+    };
 }
